@@ -1,5 +1,8 @@
 """CLI interface for Anubis."""
 
+import json
+import sys
+
 import click
 
 from .core import Anubis, AnubisError, NotInitializedError
@@ -124,15 +127,33 @@ def log(limit: int):
 
 @main.command()
 @click.argument("checkpoint_id")
-def resume(checkpoint_id: str):
+@click.option(
+    "-f", "--format",
+    type=click.Choice(["human", "json", "prompt"]),
+    default="human",
+    help="Output format: human (default), json, or prompt (AI-optimized)"
+)
+def resume(checkpoint_id: str, format: str):
     """Show checkpoint details for resuming work.
 
     CHECKPOINT_ID can be a prefix (e.g., 'abc' matches 'abc123def').
+
+    Use --format=prompt to get AI-optimized output for injecting into prompts.
+    Use --format=json for machine-readable output.
     """
     try:
         anubis = Anubis()
         cp = anubis.resume(checkpoint_id)
 
+        if format == "json":
+            click.echo(json.dumps(cp.to_dict(), indent=2))
+            return
+
+        if format == "prompt":
+            click.echo(cp.to_prompt())
+            return
+
+        # Human-readable format
         click.echo(f"Checkpoint: {cp.id}")
         click.echo(f"Created: {cp.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
         click.echo(f"Message: {cp.message}")
@@ -145,13 +166,30 @@ def resume(checkpoint_id: str):
             click.echo(f"\nContext Summary:")
             click.echo(f"  {cp.summary}")
 
-        if cp.files_context:
+        if cp.file_snapshots:
+            click.echo(f"\nFile snapshots ({len(cp.file_snapshots)} files):")
+            for snap in cp.file_snapshots[:10]:
+                status_color = {
+                    "added": "green",
+                    "modified": "yellow",
+                    "deleted": "red",
+                    "untracked": "cyan",
+                }.get(snap.status, None)
+                click.echo(f"  {click.style(snap.status, fg=status_color)}: {snap.path}")
+            if len(cp.file_snapshots) > 10:
+                click.echo(f"  ... and {len(cp.file_snapshots) - 10} more")
+        elif cp.files_context:
             click.echo(f"\nFiles in context:")
-            for f in cp.files_context:
+            for f in cp.files_context[:15]:
                 click.echo(f"  {f}")
+            if len(cp.files_context) > 15:
+                click.echo(f"  ... and {len(cp.files_context) - 15} more")
 
         if cp.git_ref:
             click.echo(f"\nGit ref: {cp.git_ref}")
+
+        # Hint about prompt format
+        click.echo(f"\n{click.style('Tip:', dim=True)} Use --format=prompt for AI-friendly output")
 
     except NotInitializedError as e:
         click.echo(f"Error: {e}", err=True)
@@ -178,6 +216,128 @@ def semantic_commit(message: str, reasoning: str | None, no_add: bool):
         click.echo(f"  {commit.message}")
         if commit.reasoning:
             click.echo(f"  Reasoning: {commit.reasoning}")
+
+    except NotInitializedError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    except AnubisError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@main.group()
+def hooks():
+    """Manage integration hooks for auto-checkpointing."""
+    pass
+
+
+@hooks.command("setup")
+@click.option("--print-only", is_flag=True, help="Print config without installing")
+def hooks_setup(print_only: bool):
+    """Set up Claude Code integration hooks."""
+    from .hooks import setup_claude_code_hooks
+
+    try:
+        anubis = Anubis()
+        if not anubis.is_initialized():
+            click.echo("Error: Anubis not initialized. Run 'anubis init' first.", err=True)
+            raise SystemExit(1)
+
+        config = setup_claude_code_hooks(anubis.repo_root)
+
+        if print_only:
+            click.echo("Add this to your Claude Code settings (~/.claude/settings.json):")
+            click.echo()
+            click.echo(json.dumps(config, indent=2))
+        else:
+            click.echo("Claude Code hook configuration:")
+            click.echo(json.dumps(config, indent=2))
+            click.echo()
+            click.echo("To enable, add the above to ~/.claude/settings.json")
+            click.echo("Or use: anubis hooks setup --print-only | pbcopy")
+
+    except AnubisError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@hooks.command("test")
+def hooks_test():
+    """Test hook by creating an auto-checkpoint."""
+    from .hooks import handle_claude_code_post_tool
+    import os
+
+    try:
+        # Simulate a tool call
+        os.environ["CLAUDE_TOOL_NAME"] = "test"
+        os.environ["CLAUDE_TOOL_INPUT"] = json.dumps({"test": True})
+
+        anubis = Anubis()
+        if not anubis.is_initialized():
+            click.echo("Error: Anubis not initialized.", err=True)
+            raise SystemExit(1)
+
+        cp = anubis.checkpoint(
+            message="Hook test checkpoint",
+            reasoning="Testing hook integration",
+        )
+        click.echo(f"Test checkpoint created: {cp.id}")
+
+    except AnubisError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@main.command("analyze")
+@click.argument("checkpoint_id", required=False)
+def analyze(checkpoint_id: str | None):
+    """Analyze semantic changes in checkpoint or working tree."""
+    from .semantic import detect_semantic_operations
+
+    try:
+        anubis = Anubis()
+
+        if checkpoint_id:
+            cp = anubis.resume(checkpoint_id)
+            snapshots = cp.file_snapshots
+        else:
+            # Analyze current working tree
+            from .models import FileSnapshot
+            files = anubis.git.get_changed_files()
+            snapshots = []
+            for f in files[:20]:
+                snapshots.append(FileSnapshot(
+                    path=f,
+                    content=anubis.git.get_file_content(f),
+                    diff=anubis.git.get_file_diff(f),
+                    status=anubis.git.get_file_status(f),
+                ))
+
+        if not snapshots:
+            click.echo("No changes to analyze.")
+            return
+
+        click.echo("Semantic analysis:")
+        click.echo()
+
+        for snap in snapshots:
+            # For now, just show file-level operations
+            # Full semantic analysis would compare old vs new content
+            ops = detect_semantic_operations(
+                snap.path,
+                None,  # Would need old content from git
+                snap.content,
+            )
+
+            if ops:
+                click.echo(f"{snap.path}:")
+                for op in ops:
+                    click.echo(f"  {click.style(op.op_type, fg='cyan')}: {op.target}")
+                    if op.details.get("signature"):
+                        click.echo(f"    {click.style(op.details['signature'], dim=True)}")
+
+        if not any(snap for snap in snapshots):
+            click.echo("No semantic operations detected.")
 
     except NotInitializedError as e:
         click.echo(f"Error: {e}", err=True)

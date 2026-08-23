@@ -7,6 +7,33 @@ import uuid
 
 
 @dataclass
+class FileSnapshot:
+    """Snapshot of a file's content at checkpoint time."""
+
+    path: str
+    content: str | None  # None if binary or too large
+    diff: str | None  # diff from last commit
+    status: str  # "added", "modified", "deleted", "untracked"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "path": self.path,
+            "content": self.content,
+            "diff": self.diff,
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FileSnapshot":
+        return cls(
+            path=data["path"],
+            content=data.get("content"),
+            diff=data.get("diff"),
+            status=data.get("status", "modified"),
+        )
+
+
+@dataclass
 class Checkpoint:
     """A lightweight snapshot of work-in-progress with reasoning context."""
 
@@ -16,6 +43,8 @@ class Checkpoint:
     reasoning: str | None = None
     git_ref: str | None = None  # commit sha or stash ref
     files_context: list[str] = field(default_factory=list)
+    file_snapshots: list[FileSnapshot] = field(default_factory=list)
+    diff: str | None = None  # overall diff summary
     summary: str | None = None  # context summary for resume
 
     def to_dict(self) -> dict[str, Any]:
@@ -26,11 +55,14 @@ class Checkpoint:
             "reasoning": self.reasoning,
             "git_ref": self.git_ref,
             "files_context": self.files_context,
+            "file_snapshots": [f.to_dict() for f in self.file_snapshots],
+            "diff": self.diff,
             "summary": self.summary,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Checkpoint":
+        snapshots = [FileSnapshot.from_dict(s) for s in data.get("file_snapshots", [])]
         return cls(
             id=data["id"],
             timestamp=datetime.fromisoformat(data["timestamp"]),
@@ -38,8 +70,41 @@ class Checkpoint:
             reasoning=data.get("reasoning"),
             git_ref=data.get("git_ref"),
             files_context=data.get("files_context", []),
+            file_snapshots=snapshots,
+            diff=data.get("diff"),
             summary=data.get("summary"),
         )
+
+    def to_prompt(self) -> str:
+        """Format checkpoint for AI prompt injection."""
+        lines = [
+            f"# Checkpoint: {self.id}",
+            f"**Message:** {self.message}",
+            f"**Created:** {self.timestamp.isoformat()}",
+        ]
+
+        if self.reasoning:
+            lines.append(f"\n## Reasoning\n{self.reasoning}")
+
+        if self.summary:
+            lines.append(f"\n## Context Summary\n{self.summary}")
+
+        if self.file_snapshots:
+            lines.append("\n## Changed Files")
+            for snap in self.file_snapshots:
+                lines.append(f"\n### {snap.path} ({snap.status})")
+                if snap.diff:
+                    lines.append(f"```diff\n{snap.diff}\n```")
+                elif snap.content and len(snap.content) < 5000:
+                    ext = snap.path.split(".")[-1] if "." in snap.path else ""
+                    lines.append(f"```{ext}\n{snap.content}\n```")
+        elif self.files_context:
+            lines.append(f"\n## Files in Context\n" + "\n".join(f"- {f}" for f in self.files_context))
+
+        if self.diff and not self.file_snapshots:
+            lines.append(f"\n## Diff Summary\n```\n{self.diff}\n```")
+
+        return "\n".join(lines)
 
 
 @dataclass

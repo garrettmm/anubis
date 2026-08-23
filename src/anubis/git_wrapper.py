@@ -157,3 +157,72 @@ class GitWrapper:
                 return self.repo.git.diff("--stat")
         except GitCommandError:
             return ""
+
+    def get_file_diff(self, filepath: str) -> str | None:
+        """Get the diff for a specific file."""
+        try:
+            # Try staged diff first, then unstaged
+            diff = self.repo.git.diff("--cached", "--", filepath)
+            if not diff:
+                diff = self.repo.git.diff("--", filepath)
+            return diff if diff else None
+        except GitCommandError:
+            return None
+
+    def get_full_diff(self) -> str:
+        """Get full diff of all changes (staged + unstaged)."""
+        try:
+            # Combine staged and unstaged diffs
+            staged = self.repo.git.diff("--cached")
+            unstaged = self.repo.git.diff()
+            parts = []
+            if staged:
+                parts.append(staged)
+            if unstaged:
+                parts.append(unstaged)
+            return "\n".join(parts)
+        except GitCommandError:
+            return ""
+
+    def get_file_content(self, filepath: str, max_size: int = 100000) -> str | None:
+        """Read file content, returning None if binary or too large."""
+        full_path = self.repo_root / filepath
+        if not full_path.exists():
+            return None
+
+        try:
+            size = full_path.stat().st_size
+            if size > max_size:
+                return None
+
+            content = full_path.read_text(encoding="utf-8")
+            return content
+        except (UnicodeDecodeError, OSError):
+            return None  # Binary or unreadable
+
+    def get_file_status(self, filepath: str) -> str:
+        """Get the status of a file: added, modified, deleted, untracked."""
+        if filepath in self.repo.untracked_files:
+            return "untracked"
+
+        try:
+            # Check if file is staged
+            if self.repo.head.is_valid():
+                for diff in self.repo.index.diff(self.repo.head.commit):
+                    if diff.a_path == filepath or diff.b_path == filepath:
+                        if diff.new_file:
+                            return "added"
+                        elif diff.deleted_file:
+                            return "deleted"
+                        return "modified"
+
+            # Check unstaged changes
+            for diff in self.repo.index.diff(None):
+                if diff.a_path == filepath or diff.b_path == filepath:
+                    if diff.deleted_file:
+                        return "deleted"
+                    return "modified"
+
+            return "modified"
+        except Exception:
+            return "unknown"

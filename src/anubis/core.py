@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from .git_wrapper import GitWrapper
-from .models import Checkpoint, SemanticCommit
+from .models import Checkpoint, FileSnapshot, SemanticCommit
 from .storage import Storage, init_db, ANUBIS_DIR
 
 
@@ -73,10 +73,30 @@ class Anubis:
         reasoning: str | None = None,
         summary: str | None = None,
         stash: bool = True,
+        capture_content: bool = True,
+        max_files: int = 20,
     ) -> Checkpoint:
         """Create a checkpoint of current work."""
         files_context = self.git.get_changed_files()
         git_ref = self.git.get_current_sha()
+
+        # Capture file snapshots (content + diffs) for changed files
+        file_snapshots = []
+        if capture_content:
+            for filepath in files_context[:max_files]:
+                status = self.git.get_file_status(filepath)
+                diff = self.git.get_file_diff(filepath)
+                content = self.git.get_file_content(filepath) if status != "deleted" else None
+
+                file_snapshots.append(FileSnapshot(
+                    path=filepath,
+                    content=content,
+                    diff=diff,
+                    status=status,
+                ))
+
+        # Get overall diff
+        full_diff = self.git.get_full_diff() if capture_content else None
 
         # Optionally stash changes to preserve exact state
         stash_ref = None
@@ -92,6 +112,8 @@ class Anubis:
             reasoning=reasoning,
             git_ref=git_ref,
             files_context=files_context,
+            file_snapshots=file_snapshots,
+            diff=full_diff,
             summary=summary,
         )
 
