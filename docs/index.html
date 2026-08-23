@@ -3,16 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anubis - AI-Native Version Control</title>
-    <meta name="description" content="Semantic commits and reasoning traces on top of git. Help AI coding assistants preserve context across sessions.">
+    <title>Anubis - Git tells you what. Anubis tells you why.</title>
+    <meta name="description" content="AI-native version control. Automatic reasoning traces for every code change. Integrates with Claude Code.">
     <style>
         :root {
-            --bg: #0a0a0a;
+            --bg: #09090b;
             --fg: #fafafa;
-            --muted: #888;
-            --accent: #c9a227;
-            --code-bg: #1a1a1a;
-            --border: #333;
+            --muted: #71717a;
+            --accent: #eab308;
+            --accent-dim: #a16207;
+            --code-bg: #18181b;
+            --border: #27272a;
+            --green: #22c55e;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -25,62 +27,81 @@
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 2rem;
         }
 
-        header {
+        /* Hero */
+        .hero {
             text-align: center;
-            padding: 4rem 0;
-            border-bottom: 1px solid var(--border);
+            padding: 5rem 0 4rem;
         }
 
-        h1 {
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            letter-spacing: -0.02em;
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.03em;
         }
 
-        h1 span {
-            color: var(--accent);
-        }
+        .hero h1 .dim { color: var(--muted); }
+        .hero h1 .accent { color: var(--accent); }
 
-        .tagline {
-            font-size: 1.25rem;
+        .hero .subtitle {
+            font-size: 1.35rem;
             color: var(--muted);
-            margin-bottom: 2rem;
+            max-width: 600px;
+            margin: 0 auto 2.5rem;
         }
 
-        .install {
+        .install-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
             background: var(--code-bg);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 1rem 1.5rem;
-            font-family: 'SF Mono', Monaco, monospace;
+            padding: 0.875rem 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .install-box code {
+            font-family: 'SF Mono', Monaco, 'Consolas', monospace;
             font-size: 1rem;
-            display: inline-block;
-            margin-bottom: 1rem;
         }
 
-        .install::before {
-            content: '$ ';
+        .install-box .prompt { color: var(--muted); }
+
+        .copy-btn {
+            background: none;
+            border: 1px solid var(--border);
             color: var(--muted);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
         }
 
-        .cta-buttons {
+        .copy-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .cta-row {
             display: flex;
             gap: 1rem;
             justify-content: center;
-            margin-top: 1.5rem;
         }
 
         .btn {
             padding: 0.75rem 1.5rem;
-            border-radius: 6px;
+            border-radius: 8px;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
+            font-size: 0.95rem;
             transition: all 0.2s;
         }
 
@@ -90,69 +111,187 @@
         }
 
         .btn-primary:hover {
-            filter: brightness(1.1);
+            background: #fbbf24;
         }
 
-        .btn-secondary {
-            border: 1px solid var(--border);
+        .btn-ghost {
+            color: var(--muted);
+        }
+
+        .btn-ghost:hover {
             color: var(--fg);
         }
 
-        .btn-secondary:hover {
-            border-color: var(--muted);
+        /* Demo Section */
+        .demo-section {
+            padding: 4rem 0;
+            border-top: 1px solid var(--border);
         }
 
-        section {
-            padding: 4rem 0;
+        .demo-section h2 {
+            text-align: center;
+            font-size: 1.5rem;
+            color: var(--muted);
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+
+        .demo-section h2 span {
+            color: var(--fg);
+        }
+
+        .demo-container {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .demo-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: #0f0f10;
             border-bottom: 1px solid var(--border);
         }
 
-        h2 {
-            font-size: 1.75rem;
-            margin-bottom: 1.5rem;
-            font-weight: 600;
+        .demo-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--border);
         }
 
-        .problem-grid {
-            display: grid;
-            gap: 1rem;
+        .demo-dot.red { background: #ef4444; }
+        .demo-dot.yellow { background: #eab308; }
+        .demo-dot.green { background: #22c55e; }
+
+        .demo-title {
+            margin-left: 0.5rem;
+            color: var(--muted);
+            font-size: 0.85rem;
         }
 
-        .problem-item {
+        .demo-content {
+            padding: 1.5rem;
+            min-height: 350px;
             display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
+            align-items: center;
+            justify-content: center;
         }
 
-        .problem-item::before {
-            content: '×';
-            color: #e55;
-            font-weight: bold;
-            font-size: 1.25rem;
+        .demo-content img {
+            max-width: 100%;
+            border-radius: 4px;
         }
 
-        .solution-grid {
+        .demo-placeholder {
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .demo-placeholder .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Problem/Solution */
+        .value-section {
+            padding: 4rem 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .value-grid {
             display: grid;
-            gap: 1.5rem;
-            margin-top: 1rem;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
         }
 
-        .solution-item {
+        .value-col h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .value-col.problem h3 { color: #ef4444; }
+        .value-col.solution h3 { color: var(--green); }
+
+        .value-item {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            color: var(--muted);
+        }
+
+        .value-item .icon {
+            flex-shrink: 0;
+            font-size: 1.1rem;
+        }
+
+        .problem .value-item .icon { color: #ef4444; }
+        .solution .value-item .icon { color: var(--green); }
+
+        /* How it works */
+        .how-section {
+            padding: 4rem 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .how-section h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .step {
+            text-align: center;
+        }
+
+        .step-num {
+            width: 40px;
+            height: 40px;
             background: var(--code-bg);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.25rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-weight: 600;
+            color: var(--accent);
         }
 
-        .solution-item h3 {
-            color: var(--accent);
-            font-size: 1rem;
+        .step h4 {
             margin-bottom: 0.5rem;
         }
 
-        .solution-item p {
+        .step p {
             color: var(--muted);
             font-size: 0.9rem;
+        }
+
+        /* Code block */
+        .code-section {
+            padding: 4rem 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .code-section h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            color: var(--muted);
         }
 
         pre {
@@ -163,104 +302,178 @@
             overflow-x: auto;
             font-family: 'SF Mono', Monaco, monospace;
             font-size: 0.875rem;
-            line-height: 1.7;
+            line-height: 1.8;
         }
 
-        .comment { color: #6a9955; }
-        .command { color: var(--fg); }
-        .flag { color: #9cdcfe; }
-        .string { color: #ce9178; }
+        .c { color: #6b7280; }
+        .cmd { color: var(--fg); }
+        .str { color: #fbbf24; }
+        .flag { color: #60a5fa; }
+        .out { color: var(--green); }
 
+        /* Footer */
         footer {
             padding: 3rem 0;
             text-align: center;
             color: var(--muted);
+            border-top: 1px solid var(--border);
         }
 
         footer a {
-            color: var(--accent);
+            color: var(--muted);
             text-decoration: none;
+            transition: color 0.2s;
         }
 
-        @media (max-width: 600px) {
-            h1 { font-size: 2rem; }
-            .tagline { font-size: 1rem; }
-            .cta-buttons { flex-direction: column; }
-            .container { padding: 1rem; }
+        footer a:hover {
+            color: var(--accent);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.25rem; }
+            .hero .subtitle { font-size: 1.1rem; }
+            .value-grid { grid-template-columns: 1fr; gap: 2rem; }
+            .steps { grid-template-columns: 1fr; }
+            .cta-row { flex-direction: column; align-items: center; }
+            .container { padding: 1.5rem; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1><span>Anubis</span></h1>
-            <p class="tagline">AI-native version control.<br>Semantic commits and reasoning traces on top of git.</p>
-            <div class="install">pip install anubis-vcs</div>
-            <div class="cta-buttons">
+        <section class="hero">
+            <h1>
+                <span class="dim">Git tells you</span> what<span class="dim">.</span><br>
+                <span class="accent">Anubis</span> <span class="dim">tells you</span> why<span class="dim">.</span>
+            </h1>
+            <p class="subtitle">
+                Automatic reasoning traces for AI-assisted coding.
+                Every change documented with context. Code review that finally makes sense.
+            </p>
+            <div class="install-box">
+                <code><span class="prompt">$</span> pip install anubis-vcs</code>
+                <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install anubis-vcs')">copy</button>
+            </div>
+            <div class="cta-row">
                 <a href="https://github.com/garrettmm/anubis" class="btn btn-primary">View on GitHub</a>
-                <a href="https://pypi.org/project/anubis-vcs/" class="btn btn-secondary">PyPI Package</a>
-            </div>
-        </header>
-
-        <section>
-            <h2>The Problem</h2>
-            <div class="problem-grid">
-                <div class="problem-item">AI coding sessions end and context is lost</div>
-                <div class="problem-item">You can't resume exactly where you left off</div>
-                <div class="problem-item">No record of the reasoning behind changes</div>
-                <div class="problem-item">Code review lacks the "why"</div>
+                <a href="#demo" class="btn btn-ghost">See it in action ↓</a>
             </div>
         </section>
 
-        <section>
-            <h2>The Solution</h2>
-            <div class="solution-grid">
-                <div class="solution-item">
-                    <h3>Checkpoints with Reasoning</h3>
-                    <p>Save not just code state, but why you made changes. "Trying JWT approach because sessions don't scale."</p>
+        <section class="demo-section" id="demo">
+            <h2>Watch <span>Claude Code</span> auto-checkpoint with reasoning</h2>
+            <div class="demo-container">
+                <div class="demo-header">
+                    <div class="demo-dot red"></div>
+                    <div class="demo-dot yellow"></div>
+                    <div class="demo-dot green"></div>
+                    <span class="demo-title">Terminal — anubis</span>
                 </div>
-                <div class="solution-item">
-                    <h3>File Snapshots</h3>
-                    <p>Capture content and diffs at each checkpoint. Full context preserved.</p>
-                </div>
-                <div class="solution-item">
-                    <h3>Semantic Analysis</h3>
-                    <p>Automatically detect what changed: added functions, renamed classes, modified signatures.</p>
-                </div>
-                <div class="solution-item">
-                    <h3>AI-Friendly Output</h3>
-                    <p>Export checkpoints in a format perfect for pasting into Claude, ChatGPT, or Cursor.</p>
+                <div class="demo-content">
+                    <!-- Replace with actual GIF -->
+                    <img src="demo.gif" alt="Anubis auto-checkpointing with Claude Code" onerror="this.parentElement.innerHTML='<div class=\'demo-placeholder\'><div class=\'icon\'>▶</div><p>Demo GIF coming soon</p></div>'">
                 </div>
             </div>
         </section>
 
-        <section>
-            <h2>Quick Start</h2>
-            <pre><code><span class="comment"># Initialize in any git repo</span>
-<span class="command">anubis init</span>
-
-<span class="comment"># Create checkpoint with reasoning</span>
-<span class="command">anubis checkpoint</span> <span class="string">"Refactoring auth"</span> <span class="flag">-r</span> <span class="string">"Trying JWT, sessions don't scale"</span>
-
-<span class="comment"># View history</span>
-<span class="command">anubis log</span>
-
-<span class="comment"># Resume with AI-optimized output</span>
-<span class="command">anubis resume abc123</span> <span class="flag">--format=prompt</span>
-
-<span class="comment"># See semantic analysis</span>
-<span class="command">anubis analyze</span></code></pre>
+        <section class="value-section">
+            <div class="value-grid">
+                <div class="value-col problem">
+                    <h3><span class="icon">✕</span> The Problem</h3>
+                    <div class="value-item">
+                        <span class="icon">×</span>
+                        <span>Code review shows <em>what</em> changed, never <em>why</em></span>
+                    </div>
+                    <div class="value-item">
+                        <span class="icon">×</span>
+                        <span>AI makes 50 changes—no explanation of the approach</span>
+                    </div>
+                    <div class="value-item">
+                        <span class="icon">×</span>
+                        <span>Context lost when sessions end or conversation resets</span>
+                    </div>
+                    <div class="value-item">
+                        <span class="icon">×</span>
+                        <span>Commit messages like "fix bug" or "update code"</span>
+                    </div>
+                </div>
+                <div class="value-col solution">
+                    <h3><span class="icon">✓</span> The Solution</h3>
+                    <div class="value-item">
+                        <span class="icon">✓</span>
+                        <span>Every checkpoint captures the reasoning behind changes</span>
+                    </div>
+                    <div class="value-item">
+                        <span class="icon">✓</span>
+                        <span>Claude Code hook auto-saves context as you work</span>
+                    </div>
+                    <div class="value-item">
+                        <span class="icon">✓</span>
+                        <span>Resume any session with full context restored</span>
+                    </div>
+                    <div class="value-item">
+                        <span class="icon">✓</span>
+                        <span>Semantic analysis: "added function", "renamed class"</span>
+                    </div>
+                </div>
+            </div>
         </section>
 
-        <section>
-            <h2>Claude Code Integration</h2>
-            <p style="color: var(--muted); margin-bottom: 1rem;">Auto-checkpoint when Claude makes changes to your code.</p>
-            <pre><code><span class="command">anubis hooks setup</span>
-<span class="comment"># Add output to ~/.claude/settings.json</span></code></pre>
+        <section class="how-section">
+            <h2>How it works</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h4>Install the hook</h4>
+                    <p>One command connects Anubis to Claude Code. Zero configuration.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h4>Code with AI</h4>
+                    <p>Work normally. Anubis silently captures checkpoints with reasoning.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h4>Resume anytime</h4>
+                    <p>Export context in AI-friendly format. Pick up exactly where you left off.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="code-section">
+            <h2>Quick start</h2>
+            <pre><code><span class="c"># Initialize in any git repo</span>
+<span class="cmd">anubis init</span>
+
+<span class="c"># Set up Claude Code auto-checkpointing</span>
+<span class="cmd">anubis hooks setup</span>
+
+<span class="c"># Or create manual checkpoints with reasoning</span>
+<span class="cmd">anubis checkpoint</span> <span class="str">"Refactoring auth"</span> <span class="flag">-r</span> <span class="str">"JWT approach - sessions don't scale"</span>
+
+<span class="c"># View checkpoint history</span>
+<span class="cmd">anubis log</span>
+<span class="out">→ 3f8a2b1 (10 min ago) Refactoring auth</span>
+<span class="out">  Reasoning: JWT approach - sessions don't scale</span>
+
+<span class="c"># Resume with AI-optimized output</span>
+<span class="cmd">anubis resume 3f8a</span> <span class="flag">--format=prompt</span></code></pre>
         </section>
 
         <footer>
-            <p>MIT License &middot; <a href="https://github.com/garrettmm/anubis">GitHub</a> &middot; <a href="https://pypi.org/project/anubis-vcs/">PyPI</a></p>
+            <div class="footer-links">
+                <a href="https://github.com/garrettmm/anubis">GitHub</a>
+                <a href="https://pypi.org/project/anubis-vcs/">PyPI</a>
+                <a href="https://github.com/garrettmm/anubis#readme">Docs</a>
+            </div>
+            <p>MIT License · Built for developers who work with AI</p>
         </footer>
     </div>
 </body>
