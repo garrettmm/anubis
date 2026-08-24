@@ -57,10 +57,8 @@ Install by adding to your Claude Code hooks configuration:
 {
   "hooks": {
     "PostToolUse": [
-      {
-        "matcher": {"tools": ["Edit", "Write"]},
-        "hooks": [{"type": "command", "command": "python3 -m anubis.hooks claude-code-post-tool"}]
-      }
+      {"matcher": "Edit", "hooks": [{"type": "command", "command": "python3 -m anubis.hooks claude-code-post-tool"}]},
+      {"matcher": "Write", "hooks": [{"type": "command", "command": "python3 -m anubis.hooks claude-code-post-tool"}]}
     ]
   }
 }
@@ -176,18 +174,14 @@ def setup_claude_code_hooks(repo_root: Path) -> dict[str, Any]:
     Returns a dict that can be merged into .claude/settings.json
     Uses the new matcher-based format required by Claude Code.
     """
+    command = f"{sys.executable} -m anubis.hooks claude-code-post-tool"
+    hook_entry = {"type": "command", "command": command}
+
     return {
         "hooks": {
             "PostToolUse": [
-                {
-                    "matcher": {"tools": ["Edit", "Write"]},
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": f"{sys.executable} -m anubis.hooks claude-code-post-tool",
-                        }
-                    ],
-                }
+                {"matcher": "Edit", "hooks": [hook_entry]},
+                {"matcher": "Write", "hooks": [hook_entry]},
             ]
         }
     }

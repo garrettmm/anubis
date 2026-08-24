@@ -102,15 +102,17 @@ def setup(no_mcp: bool, no_hooks: bool):
             # Add or update PostToolUse hooks
             post_tool_hooks = settings["hooks"].get("PostToolUse", [])
 
-            # Check if anubis hook already exists
-            anubis_hook = hook_config["hooks"]["PostToolUse"][0]
-            hook_exists = any(
-                "anubis" in h.get("command", "")
-                for h in post_tool_hooks
-            )
+            # Check if anubis hook already exists (check inside hooks array)
+            def has_anubis_hook(entry):
+                hooks_list = entry.get("hooks", [])
+                return any("anubis" in h.get("command", "") for h in hooks_list)
+
+            hook_exists = any(has_anubis_hook(h) for h in post_tool_hooks)
 
             if not hook_exists:
-                post_tool_hooks.append(anubis_hook)
+                # Add all hook entries from config
+                for hook_entry in hook_config["hooks"]["PostToolUse"]:
+                    post_tool_hooks.append(hook_entry)
                 settings["hooks"]["PostToolUse"] = post_tool_hooks
                 settings_path.write_text(json.dumps(settings, indent=2))
                 click.echo(click.style("  Hooks installed", fg="green"))
