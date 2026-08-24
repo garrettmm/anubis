@@ -80,15 +80,81 @@ def anubis_resume(checkpoint_id: str) -> str:
 def anubis_checkpoint(message: str, reasoning: str | None = None) -> str:
     """Create a new checkpoint with optional reasoning.
 
-    Captures the current state of changed files along with
-    the reasoning behind the changes.
+    A checkpoint captures the current state of changed files along with the reasoning
+    behind the changes. Checkpoints are the primary mechanism for preserving context
+    across sessions - they will be formatted and injected back to you when resuming work.
+
+    This tool is automatically invoked after Edit/Write operations (with your thinking
+    captured as reasoning), but you can also call it manually for important milestones.
+
+    MESSAGE FORMAT:
+    Use a hybrid format: "Semantic change - Intent/context"
+
+    Template: "{what_changed} - {why_or_what_for}"
+
+    Good Examples:
+      - "Add JWT authentication - replacing session-based auth for horizontal scaling"
+      - "Refactor error handling - centralizing try/catch to reduce duplication"
+      - "Extract validation logic - preparing for API endpoint reuse"
+      - "Fix race condition in cache - users seeing stale data on refresh"
+      - "Update database schema - adding user_roles table for RBAC"
+
+    Avoid These:
+      - "Update code" (too vague - what changed and why?)
+      - "Fix bug" (which bug? what was the root cause?)
+      - "Work in progress" (what specific work? what's the goal?)
+
+    REASONING FORMAT:
+    Your reasoning will be displayed when resuming from this checkpoint, so provide
+    comprehensive context that would help you (or another AI) understand the full picture.
+
+    Required Elements:
+      ✓ What problem you're solving or goal you're pursuing
+      ✓ Why you chose this approach over alternatives (trade-offs)
+      ✓ Current implementation status (what works, what doesn't)
+      ✓ Known issues, blockers, or technical debt introduced
+      ✓ Next steps or what needs to happen to complete the work
+      ✓ Any important context about the codebase state
+
+    Style: Write in paragraph form (not bullet points). Be conversational and thorough.
+    Assume the reader has context about the codebase but not about your current session.
+
+    Example Reasoning:
+    "I'm implementing JWT-based authentication to replace the session-based approach.
+    The previous session storage was causing issues with horizontal scaling since sessions
+    weren't shared across instances. I chose JWT with refresh tokens to maintain security
+    while enabling stateless auth. So far I've added the token generation logic and updated
+    the login endpoint, but I still need to implement the middleware for token validation
+    and handle refresh token rotation. One concern is that the current implementation stores
+    the JWT secret in plain text - we'll need to move this to environment variables before
+    deploying. Next step is to add the authentication middleware and test the login flow end-to-end."
+
+    QUALITY CRITERIA:
+    A useful checkpoint for resumption should:
+      - Enable someone to understand WHY changes were made, not just WHAT changed
+      - Provide enough context to continue the work without re-discovering decisions
+      - Capture the current state honestly (what's working, what's broken, what's hacky)
+      - Include next steps so work can continue seamlessly
+      - Mention important codebase context that influenced decisions
+
+    Critical Information:
+      - Problem/goal being addressed
+      - Approach rationale and trade-offs
+      - Current implementation status
+      - Next steps
+
+    Nice-to-Have:
+      - Alternative approaches considered
+      - Technical debt or shortcuts taken
+      - Testing status
+      - Performance considerations
 
     Args:
-        message: Short description of the checkpoint
-        reasoning: Explanation of why these changes were made
+        message: Hybrid format - "Semantic change - Intent/context"
+        reasoning: Comprehensive paragraph explaining context, decisions, status, and next steps
 
     Returns:
-        Confirmation with the new checkpoint ID
+        Confirmation with the new checkpoint ID and files captured
     """
     try:
         anubis = _get_anubis()

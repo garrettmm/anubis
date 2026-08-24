@@ -1,12 +1,44 @@
 """Integration hooks for auto-checkpointing with AI coding tools."""
 
 import json
+import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
 from .core import Anubis, AnubisError
+from .semantic import analyze_diff_semantics
+
+
+def _setup_logger() -> logging.Logger:
+    """Set up rotating file logger for hooks."""
+    log_dir = Path.home() / ".anubis"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "hook.log"
+
+    logger = logging.getLogger("anubis.hooks")
+    logger.setLevel(logging.INFO)
+
+    # Avoid duplicate handlers if function called multiple times
+    if not logger.handlers:
+        handler = RotatingFileHandler(
+            log_file,
+            maxBytes=1_000_000,  # 1 MB
+            backupCount=2,
+        )
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    return logger
+
+
+logger = _setup_logger()
 
 
 class HookConfig:
@@ -117,6 +149,191 @@ if __name__ == "__main__":
 '''
 
 
+def _get_old_content(git_wrapper, filepath: str, status: str) -> str | None:
+    """Get old file content for semantic comparison.
+
+    Args:
+        git_wrapper: Git operations wrapper
+        filepath: Path to file
+        status: File status (added, modified, deleted, untracked)
+
+    Returns:
+        Old content from HEAD, or None if file is new
+    """
+    if status in ("added", "untracked"):
+        return None
+
+    try:
+        from git.exc import GitCommandError
+        return git_wrapper.repo.git.show(f'HEAD:{filepath}')
+    except Exception:
+        return None
+
+
+def _analyze_changed_files(git_wrapper, changed_files: list[str]) -> list:
+    """Run semantic analysis on changed files.
+
+    Args:
+        git_wrapper: Git operations wrapper
+        changed_files: List of file paths
+
+    Returns:
+        List of semantic operations detected
+    """
+    file_data = []
+
+    for filepath in changed_files[:10]:  # Limit to first 10 files for performance
+        try:
+            status = git_wrapper.get_file_status(filepath)
+            old_content = _get_old_content(git_wrapper, filepath, status)
+            new_content = git_wrapper.get_file_content(filepath) if status != "deleted" else None
+
+            file_data.append((filepath, old_content, new_content))
+        except Exception as e:
+            logger.warning(f"Failed to get content for {filepath}: {e}")
+            continue
+
+    if not file_data:
+        return []
+
+    try:
+        return analyze_diff_semantics(file_data)
+    except Exception as e:
+        logger.error(f"Semantic analysis failed: {e}")
+        return []
+
+
+def _format_semantic_message(tool_name: str, filepath: str | None, operations: list) -> str:
+    """Generate checkpoint message from semantic operations.
+
+    Args:
+        tool_name: Name of tool that triggered hook
+        filepath: Primary file path (if available)
+        operations: Semantic operations detected
+
+    Returns:
+        Human-readable checkpoint message
+    """
+    if not operations:
+        # Fallback to generic message
+        if filepath:
+            return f"Auto: {tool_name} {Path(filepath).name}"
+        return f"Auto: {tool_name}"
+
+    # Group operations by type
+    by_type = {}
+    for op in operations:
+        by_type.setdefault(op.op_type, []).append(op)
+
+    parts = []
+
+    # Format each operation type
+    for op_type in sorted(by_type.keys()):
+        ops = by_type[op_type]
+        kind = op_type.replace("add_", "").replace("modify_", "").replace("delete_", "")
+        names = [op.target.split(":")[-1] for op in ops[:3]]
+
+        if op_type.startswith("add_"):
+            plural_kind = f"{kind}es" if kind.endswith("s") else f"{kind}s"
+            if len(ops) == 1:
+                parts.append(f"Add {kind}: {names[0]}")
+            else:
+                name_str = ", ".join(names)
+                if len(ops) > 3:
+                    name_str += f" +{len(ops) - 3} more"
+                parts.append(f"Add {len(ops)} {plural_kind}: {name_str}")
+        elif op_type.startswith("modify_"):
+            if len(ops) == 1:
+                parts.append(f"Update {kind}: {names[0]}")
+            else:
+                parts.append(f"Update {len(ops)} {kind}s")
+        elif op_type.startswith("delete_"):
+            if len(ops) == 1:
+                parts.append(f"Remove {kind}: {names[0]}")
+            else:
+                parts.append(f"Remove {len(ops)} {kind}s")
+        elif op_type == "rename":
+            old_name = ops[0].details.get("old_name", "?")
+            new_name = ops[0].details.get("new_name", "?")
+            parts.append(f"Rename {kind}: {old_name} → {new_name}")
+
+    message = "; ".join(parts[:3])  # Limit to 3 operation types
+
+    # Truncate if too long
+    if len(message) > 120:
+        message = message[:117] + "..."
+
+    return message
+
+
+def _generate_reasoning_from_operations(operations: list) -> str | None:
+    """Generate reasoning text from semantic operations.
+
+    Args:
+        operations: Semantic operations detected
+
+    Returns:
+        Human-readable reasoning, or None if no operations
+    """
+    if not operations:
+        return None
+
+    # Group by operation type for better narrative
+    by_type = {}
+    for op in operations:
+        by_type.setdefault(op.op_type, []).append(op)
+
+    sentences = []
+
+    for op_type, ops in by_type.items():
+        kind = op_type.replace("add_", "").replace("modify_", "").replace("delete_", "")
+        names = [op.target.split(":")[-1] for op in ops[:3]]
+
+        if op_type.startswith("add_"):
+            plural_kind = f"{kind}es" if kind.endswith("s") else f"{kind}s"
+            if len(ops) == 1:
+                sig = ops[0].details.get("signature", "")
+                if sig:
+                    sentences.append(f"Adding {kind} '{names[0]}': {sig}")
+                else:
+                    sentences.append(f"Adding {kind} '{names[0]}'")
+            else:
+                name_list = ", ".join(names)
+                if len(ops) > 3:
+                    name_list += f" and {len(ops) - 3} more"
+                sentences.append(f"Adding {len(ops)} {plural_kind}: {name_list}")
+
+        elif op_type.startswith("modify_"):
+            if len(ops) == 1:
+                sentences.append(f"Modifying {kind} '{names[0]}'")
+                # Include signature change if available
+                old_sig = ops[0].details.get("old_signature")
+                new_sig = ops[0].details.get("new_signature")
+                if old_sig and new_sig:
+                    sentences.append(f"Signature changed from '{old_sig}' to '{new_sig}'")
+            else:
+                sentences.append(f"Updating {len(ops)} {kind}s")
+
+        elif op_type.startswith("delete_"):
+            if len(ops) == 1:
+                sentences.append(f"Removing {kind} '{names[0]}'")
+            else:
+                sentences.append(f"Removing {len(ops)} {kind}s: {', '.join(names)}")
+
+        elif op_type == "rename":
+            old_name = ops[0].details.get("old_name", "?")
+            new_name = ops[0].details.get("new_name", "?")
+            sentences.append(f"Renaming {kind} from '{old_name}' to '{new_name}'")
+
+    reasoning = ". ".join(sentences)
+
+    # Truncate if too long
+    if len(reasoning) > 500:
+        reasoning = reasoning[:497] + "..."
+
+    return reasoning
+
+
 def handle_claude_code_post_tool() -> None:
     """Handle post-tool-use hook from Claude Code.
 
@@ -127,6 +344,7 @@ def handle_claude_code_post_tool() -> None:
         # Read JSON from stdin (Claude Code's hook protocol)
         input_json = sys.stdin.read()
         if not input_json.strip():
+            logger.info("Empty stdin, skipping hook")
             return
 
         hook_data = json.loads(input_json)
@@ -135,37 +353,81 @@ def handle_claude_code_post_tool() -> None:
         tool_input = hook_data.get("tool_input", {})
         thinking = hook_data.get("thinking", "")
 
+        # Log hook invocation
+        thinking_length = len(thinking) if thinking else 0
+        logger.info(
+            f"Tool: {tool_name} | Thinking present: {bool(thinking)} ({thinking_length} chars)"
+        )
+
         # Change to the working directory from hook data
         cwd = hook_data.get("cwd")
         if cwd:
             os.chdir(cwd)
+            logger.debug(f"Changed directory to: {cwd}")
 
         anubis = Anubis()
         if not anubis.is_initialized():
+            logger.info("Anubis not initialized, skipping checkpoint")
             return
 
-        # Build a meaningful checkpoint message
+        # Get changed files for semantic analysis
+        changed_files = anubis.git.get_changed_files()
+
+        if not changed_files:
+            logger.info("No changed files, skipping checkpoint")
+            return
+
+        logger.info(f"Changed files: {len(changed_files)}")
+
+        # Run semantic analysis
+        operations = _analyze_changed_files(anubis.git, changed_files)
+
+        logger.info(f"Semantic analysis: {len(operations)} operations")
+
+        if operations:
+            op_types = [op.op_type for op in operations]
+            logger.debug(f"Operation types: {', '.join(set(op_types))}")
+
+        # Generate message from semantic operations
+        primary_file = None
         if isinstance(tool_input, dict) and "file_path" in tool_input:
-            filename = Path(tool_input["file_path"]).name
-            message = f"Auto: {tool_name} {filename}"
-        elif isinstance(tool_input, dict) and "command" in tool_input:
-            cmd = tool_input["command"][:50]
-            message = f"Auto: {tool_name} `{cmd}`"
+            primary_file = tool_input["file_path"]
+
+        message = _format_semantic_message(tool_name, primary_file, operations)
+        logger.info(f"Generated message: {message}")
+
+        # Determine reasoning: use thinking if available, otherwise generate from operations
+        if thinking and thinking.strip() and len(thinking.strip()) >= 10:
+            reasoning = thinking
+            logger.info("Using Claude's thinking as reasoning")
         else:
-            message = f"Auto: {tool_name}"
+            reasoning = _generate_reasoning_from_operations(operations)
+            if reasoning:
+                logger.info("Generated reasoning from semantic operations")
+            else:
+                # Fallback reasoning
+                reasoning = f"Automated checkpoint after {tool_name} operation on {len(changed_files)} file(s)."
+                logger.info("Using fallback reasoning")
 
-        # Use Claude's thinking as the reasoning (the key fix!)
-        reasoning = thinking if thinking else None
-
-        anubis.checkpoint(
+        # Create checkpoint
+        checkpoint = anubis.checkpoint(
             message=message,
             reasoning=reasoning,
             capture_content=True,
             max_files=10,
         )
 
-    except (json.JSONDecodeError, AnubisError, OSError):
-        pass  # Silently fail - don't interrupt Claude Code
+        logger.info(f"Checkpoint created: {checkpoint.id}")
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse hook JSON: {e}")
+    except AnubisError as e:
+        logger.error(f"Anubis error: {e}")
+    except OSError as e:
+        logger.error(f"OS error: {e}")
+    except Exception as e:
+        logger.exception(f"Unexpected error in hook: {e}")
+        # Still fail silently to not interrupt Claude Code
 
 
 def setup_claude_code_hooks(repo_root: Path) -> dict[str, Any]:
