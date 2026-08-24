@@ -412,7 +412,7 @@
                     </div>
                     <div class="value-item">
                         <span class="icon">✓</span>
-                        <span>Claude Code hook auto-saves context as you work</span>
+                        <span>Native Claude Code integration via MCP—no copy/paste</span>
                     </div>
                     <div class="value-item">
                         <span class="icon">✓</span>
@@ -431,18 +431,18 @@
             <div class="steps">
                 <div class="step">
                     <div class="step-num">1</div>
-                    <h4>Install the hook</h4>
-                    <p>One command connects Anubis to Claude Code. Zero configuration.</p>
+                    <h4>Connect to Claude Code</h4>
+                    <p>One command adds Anubis as an MCP server. Zero configuration.</p>
                 </div>
                 <div class="step">
                     <div class="step-num">2</div>
                     <h4>Code with AI</h4>
-                    <p>Work normally. Anubis silently captures checkpoints with reasoning.</p>
+                    <p>Work normally. Anubis captures checkpoints with reasoning as you go.</p>
                 </div>
                 <div class="step">
                     <div class="step-num">3</div>
                     <h4>Resume anytime</h4>
-                    <p>Export context in AI-friendly format. Pick up exactly where you left off.</p>
+                    <p>Claude Code reads context directly. Pick up exactly where you left off.</p>
                 </div>
             </div>
         </section>
@@ -452,10 +452,10 @@
             <pre><code><span class="c"># Initialize in any git repo</span>
 <span class="cmd">anubis init</span>
 
-<span class="c"># Set up Claude Code auto-checkpointing</span>
-<span class="cmd">anubis hooks setup</span>
+<span class="c"># Connect to Claude Code via MCP</span>
+<span class="cmd">claude mcp add anubis</span> <span class="flag">--</span> <span class="str">anubis-mcp</span>
 
-<span class="c"># Or create manual checkpoints with reasoning</span>
+<span class="c"># Create checkpoints with reasoning</span>
 <span class="cmd">anubis checkpoint</span> <span class="str">"Refactoring auth"</span> <span class="flag">-r</span> <span class="str">"JWT approach - sessions don't scale"</span>
 
 <span class="c"># View checkpoint history</span>
@@ -463,8 +463,7 @@
 <span class="out">→ 3f8a2b1 (10 min ago) Refactoring auth</span>
 <span class="out">  Reasoning: JWT approach - sessions don't scale</span>
 
-<span class="c"># Resume with AI-optimized output</span>
-<span class="cmd">anubis resume 3f8a</span> <span class="flag">--format=prompt</span></code></pre>
+<span class="c"># Claude Code can now access checkpoints directly!</span></code></pre>
         </section>
 
         <footer>

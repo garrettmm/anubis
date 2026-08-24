@@ -1,10 +1,10 @@
-# VHS demo script for Anubis
+# VHS demo script for Anubis MCP integration
 
 Output demo.gif
 
 Set FontSize 15
-Set Width 800
-Set Height 480
+Set Width 850
+Set Height 500
 Set Theme "Dracula"
 Set Padding 20
 
@@ -13,4 +13,4 @@ Type "bash demo.sh"
 Enter
 Show
 
-Sleep 15s
+Sleep 18s

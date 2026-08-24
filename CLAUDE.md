@@ -45,7 +45,8 @@ src/anubis/
 ├── git_wrapper.py  # GitPython wrapper for git operations
 ├── models.py       # Dataclasses: Checkpoint, FileSnapshot, SemanticCommit
 ├── semantic.py     # AST-based semantic diff detection (Python, JS/TS)
-└── hooks.py        # Integration hooks for Claude Code auto-checkpointing
+├── hooks.py        # Integration hooks for Claude Code auto-checkpointing
+└── mcp_server.py   # MCP server for Claude Code native integration
 ```
 
 **Data flow:** CLI (`cli.py`) → Core (`core.py`) → Storage (`storage.py`) + Git (`git_wrapper.py`)
@@ -68,3 +69,21 @@ src/anubis/
 - `Checkpoint.to_prompt()` formats checkpoint data for AI context injection
 - Semantic analysis in `semantic.py` uses Python AST and regex for JS/TS
 - Database migrations handled in `storage._migrate_db()` - bump `SCHEMA_VERSION` for schema changes
+
+## MCP Server
+
+The MCP server (`mcp_server.py`) enables Claude Code to access Anubis natively without copy/paste.
+
+**Tools exposed:**
+- `anubis_list_checkpoints` - List recent checkpoints
+- `anubis_resume` - Get checkpoint context in prompt format
+- `anubis_checkpoint` - Create a new checkpoint
+- `anubis_status` - Get repo status and recent checkpoints
+- `anubis_analyze` - Run semantic analysis on current changes
+
+**Resources:**
+- `anubis://status` - Current status
+- `anubis://checkpoints` - All checkpoints
+- `anubis://checkpoint/{id}` - Individual checkpoint details
+
+**Setup:** `claude mcp add anubis -- anubis-mcp`

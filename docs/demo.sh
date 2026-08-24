@@ -1,5 +1,5 @@
 #!/bin/bash
-# Demo script for Anubis - simulates terminal session
+# Demo script for Anubis MCP integration
 
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -13,6 +13,12 @@ echo -e "${DIM}$ ${NC}anubis init"
 sleep 0.3
 echo "Initialized Anubis in /home/user/myproject"
 echo "Database: /home/user/myproject/.anubis/anubis.db"
+sleep 1.2
+
+echo ""
+echo -e "${DIM}$ ${NC}claude mcp add anubis -- anubis-mcp"
+sleep 0.3
+echo -e "${GREEN}Added MCP server: anubis${NC}"
 sleep 1.2
 
 echo ""
@@ -39,23 +45,10 @@ echo -e "  Reasoning: ${DIM}Normalizing fields for API consistency${NC}"
 sleep 2
 
 echo ""
-echo -e "${DIM}$ ${NC}anubis resume 3f8a --format=prompt"
-sleep 0.3
+echo -e "${DIM}# Now in Claude Code...${NC}"
+sleep 1
 echo ""
-echo "# Checkpoint: 3f8a2b1c"
-echo "**Message:** Added JWT auth"
-echo ""
-echo "## Reasoning"
-echo "Switching from sessions for better scaling"
-echo ""
-echo "## Changed Files"
-echo "### src/auth.py (modified)"
-echo -e "${RED}- from flask import session${NC}"
-echo -e "${GREEN}+ import jwt${NC}"
-echo -e "${GREEN}+ def create_token(user_id):${NC}"
-echo -e "${GREEN}+     return jwt.encode({\"user_id\": user_id}, SECRET)${NC}"
+echo -e "${CYAN}Claude:${NC} I can see your checkpoint 3f8a2b1c."
+echo "        You were adding JWT auth because sessions"
+echo "        don't scale. Let me continue from there..."
 sleep 2.5
-
-echo ""
-echo -e "${DIM}# Paste this into Claude to resume where you left off${NC}"
-sleep 2

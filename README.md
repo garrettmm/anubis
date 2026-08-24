@@ -94,6 +94,25 @@ Copy this into your AI assistant to resume exactly where you left off.
 
 ## Claude Code Integration
 
+### MCP Server (Recommended)
+
+Connect Anubis directly to Claude Code via MCP for seamless checkpoint access:
+
+```bash
+# Add Anubis MCP server to Claude Code
+claude mcp add anubis -- anubis-mcp
+
+# Verify connection
+claude mcp list
+```
+
+Once connected, Claude Code can:
+- List and resume from checkpoints automatically
+- Create checkpoints with reasoning during coding
+- Access semantic analysis of changes
+
+### Hooks (Auto-checkpoint)
+
 Auto-checkpoint when Claude Code makes changes:
 
 ```bash
