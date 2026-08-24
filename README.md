@@ -31,8 +31,11 @@ Requires Python 3.11+ and git.
 ## Quick Start
 
 ```bash
-# Initialize in a git repo
+# One-command setup (initializes + configures Claude Code)
 cd your-project
+anubis setup
+
+# Or initialize manually
 anubis init
 
 # Create a checkpoint with reasoning
@@ -52,6 +55,7 @@ anubis analyze
 
 | Command | Description |
 |---------|-------------|
+| `anubis setup` | One-command setup (init + MCP + hooks) |
 | `anubis init` | Initialize Anubis in a git repo |
 | `anubis checkpoint "msg" -r "reasoning"` | Create checkpoint with reasoning |
 | `anubis status` | Show current state and recent checkpoints |

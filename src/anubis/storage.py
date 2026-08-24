@@ -4,7 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .models import Checkpoint, FileSnapshot, SemanticCommit
+from .models import Checkpoint, SemanticCommit
 
 ANUBIS_DIR = ".anubis"
 DB_NAME = "anubis.db"

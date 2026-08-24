@@ -1,9 +1,9 @@
 """Data models for Anubis."""
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -39,7 +39,7 @@ class Checkpoint:
 
     message: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     reasoning: str | None = None
     git_ref: str | None = None  # commit sha or stash ref
     files_context: list[str] = field(default_factory=list)
@@ -99,7 +99,7 @@ class Checkpoint:
                     ext = snap.path.split(".")[-1] if "." in snap.path else ""
                     lines.append(f"```{ext}\n{snap.content}\n```")
         elif self.files_context:
-            lines.append(f"\n## Files in Context\n" + "\n".join(f"- {f}" for f in self.files_context))
+            lines.append("\n## Files in Context\n" + "\n".join(f"- {f}" for f in self.files_context))
 
         if self.diff and not self.file_snapshots:
             lines.append(f"\n## Diff Summary\n```\n{self.diff}\n```")
@@ -136,7 +136,7 @@ class SemanticCommit:
     message: str
     git_sha: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     operations: list[SemanticOperation] = field(default_factory=list)
     reasoning: str | None = None
     checkpoint_id: str | None = None  # link to checkpoint if created from one

@@ -1,7 +1,6 @@
 """CLI interface for Anubis."""
 
 import json
-import sys
 
 import click
 
@@ -26,6 +25,105 @@ def init():
         db_path = anubis.init()
         click.echo(f"Initialized Anubis in {anubis.repo_root}")
         click.echo(f"Database: {db_path}")
+    except AnubisError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@main.command()
+@click.option("--no-mcp", is_flag=True, help="Skip MCP server setup")
+@click.option("--no-hooks", is_flag=True, help="Skip hooks setup")
+def setup(no_mcp: bool, no_hooks: bool):
+    """One-command setup for Claude Code integration.
+
+    This command:
+    1. Initializes Anubis if not already initialized
+    2. Adds the Anubis MCP server to Claude Code
+    3. Installs the post-tool hook for auto-checkpointing
+
+    After running this, Claude Code will have full access to Anubis
+    checkpoints and will automatically capture reasoning on file changes.
+    """
+    import subprocess
+    from pathlib import Path
+
+    from .hooks import setup_claude_code_hooks
+
+    try:
+        anubis = Anubis()
+
+        # Step 1: Initialize if needed
+        if not anubis.is_initialized():
+            anubis.init()
+            click.echo(f"Initialized Anubis in {anubis.repo_root}")
+        else:
+            click.echo(f"Anubis already initialized in {anubis.repo_root}")
+
+        # Step 2: Add MCP server to Claude Code
+        if not no_mcp:
+            click.echo("\nAdding MCP server to Claude Code...")
+            try:
+                result = subprocess.run(
+                    ["claude", "mcp", "add", "anubis", "--", "anubis-mcp"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    click.echo(click.style("  MCP server added", fg="green"))
+                else:
+                    # May already be added
+                    if "already exists" in result.stderr.lower():
+                        click.echo("  MCP server already configured")
+                    else:
+                        click.echo(f"  Note: {result.stderr.strip()}")
+            except FileNotFoundError:
+                click.echo("  Skipped: 'claude' CLI not found")
+
+        # Step 3: Install hooks
+        if not no_hooks:
+            click.echo("\nSetting up hooks...")
+            settings_path = Path.home() / ".claude" / "settings.json"
+
+            hook_config = setup_claude_code_hooks(anubis.repo_root)
+
+            if settings_path.exists():
+                try:
+                    settings = json.loads(settings_path.read_text())
+                except json.JSONDecodeError:
+                    settings = {}
+            else:
+                settings_path.parent.mkdir(parents=True, exist_ok=True)
+                settings = {}
+
+            # Merge hooks config
+            if "hooks" not in settings:
+                settings["hooks"] = {}
+
+            # Add or update PostToolUse hooks
+            post_tool_hooks = settings["hooks"].get("PostToolUse", [])
+
+            # Check if anubis hook already exists
+            anubis_hook = hook_config["hooks"]["PostToolUse"][0]
+            hook_exists = any(
+                "anubis" in h.get("command", "")
+                for h in post_tool_hooks
+            )
+
+            if not hook_exists:
+                post_tool_hooks.append(anubis_hook)
+                settings["hooks"]["PostToolUse"] = post_tool_hooks
+                settings_path.write_text(json.dumps(settings, indent=2))
+                click.echo(click.style("  Hooks installed", fg="green"))
+            else:
+                click.echo("  Hooks already configured")
+
+        # Done!
+        click.echo(f"\n{click.style('Setup complete!', fg='green', bold=True)}")
+        click.echo("\nClaude Code can now:")
+        click.echo("  - Access checkpoints via MCP (anubis_list_checkpoints, anubis_resume)")
+        click.echo("  - Auto-capture reasoning on file changes")
+        click.echo("\nTry: anubis log")
+
     except AnubisError as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -159,11 +257,11 @@ def resume(checkpoint_id: str, format: str):
         click.echo(f"Message: {cp.message}")
 
         if cp.reasoning:
-            click.echo(f"\nReasoning:")
+            click.echo("\nReasoning:")
             click.echo(f"  {cp.reasoning}")
 
         if cp.summary:
-            click.echo(f"\nContext Summary:")
+            click.echo("\nContext Summary:")
             click.echo(f"  {cp.summary}")
 
         if cp.file_snapshots:
@@ -179,7 +277,7 @@ def resume(checkpoint_id: str, format: str):
             if len(cp.file_snapshots) > 10:
                 click.echo(f"  ... and {len(cp.file_snapshots) - 10} more")
         elif cp.files_context:
-            click.echo(f"\nFiles in context:")
+            click.echo("\nFiles in context:")
             for f in cp.files_context[:15]:
                 click.echo(f"  {f}")
             if len(cp.files_context) > 15:
@@ -264,7 +362,6 @@ def hooks_setup(print_only: bool):
 @hooks.command("test")
 def hooks_test():
     """Test hook by creating an auto-checkpoint."""
-    from .hooks import handle_claude_code_post_tool
     import os
 
     try:

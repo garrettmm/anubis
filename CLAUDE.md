@@ -21,6 +21,7 @@ pytest -v
 ruff check src/
 
 # CLI usage
+anubis setup                             # One-command setup (init + MCP + hooks)
 anubis init                              # Initialize in a git repo
 anubis checkpoint "message"              # Create checkpoint
 anubis checkpoint "msg" -r "reasoning"   # With reasoning trace
@@ -75,6 +76,7 @@ src/anubis/
 The MCP server (`mcp_server.py`) enables Claude Code to access Anubis natively without copy/paste.
 
 **Tools exposed:**
+- `anubis_setup` - Initialize Anubis in the current project
 - `anubis_list_checkpoints` - List recent checkpoints
 - `anubis_resume` - Get checkpoint context in prompt format
 - `anubis_checkpoint` - Create a new checkpoint

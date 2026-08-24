@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .git_wrapper import GitWrapper
 from .models import Checkpoint, FileSnapshot, SemanticCommit
-from .storage import Storage, init_db, ANUBIS_DIR
+from .storage import ANUBIS_DIR, Storage, init_db
 
 
 class AnubisError(Exception):

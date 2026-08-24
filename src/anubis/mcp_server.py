@@ -197,6 +197,38 @@ def anubis_analyze() -> str:
         return f"Error: {e}"
 
 
+@mcp.tool()
+def anubis_setup() -> str:
+    """Initialize Anubis in the current project.
+
+    Sets up Anubis for the current git repository. Run this when
+    starting work on a new project that doesn't have Anubis configured.
+
+    Returns:
+        Setup status and next steps
+    """
+    try:
+        anubis = _get_anubis()
+
+        if anubis.is_initialized():
+            return "Anubis is already initialized in this repository."
+
+        db_path = anubis.init()
+        return f"""Anubis initialized successfully!
+
+Database: {db_path}
+
+You can now:
+- Create checkpoints: anubis_checkpoint("message", "reasoning")
+- List checkpoints: anubis_list_checkpoints()
+- Resume from checkpoint: anubis_resume("checkpoint_id")
+
+Auto-checkpointing is enabled - I'll capture reasoning on file changes."""
+
+    except AnubisError as e:
+        return f"Error: {e}"
+
+
 # ============================================================================
 # Resources
 # ============================================================================

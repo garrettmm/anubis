@@ -48,7 +48,7 @@ def generate_claude_code_hook() -> str:
     """Generate a Claude Code hook script for auto-checkpointing.
 
     This creates a hook that runs after certain tool calls to create
-    automatic checkpoints.
+    automatic checkpoints with Claude's reasoning.
     """
     return '''#!/usr/bin/env python3
 """Claude Code hook for Anubis auto-checkpointing.
@@ -59,7 +59,7 @@ Install by adding to your Claude Code hooks configuration:
     "PostToolUse": [
       {
         "command": "python3 -m anubis.hooks claude-code-post-tool",
-        "tools": ["Edit", "Write", "Bash"]
+        "tools": ["Edit", "Write"]
       }
     ]
   }
@@ -69,34 +69,40 @@ Install by adding to your Claude Code hooks configuration:
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from pathlib import Path
 
 def main():
-    # Read tool use info from environment or stdin
-    tool_name = os.environ.get("CLAUDE_TOOL_NAME", "unknown")
-    tool_input = os.environ.get("CLAUDE_TOOL_INPUT", "{}")
-
+    # Claude Code passes hook data via stdin as JSON
     try:
+        input_json = sys.stdin.read()
+        if not input_json.strip():
+            return
+
+        hook_data = json.loads(input_json)
+
+        tool_name = hook_data.get("tool_name", "unknown")
+        tool_input = hook_data.get("tool_input", {})
+        thinking = hook_data.get("thinking", "")  # Claude's reasoning!
+        cwd = hook_data.get("cwd")
+
+        if cwd:
+            os.chdir(cwd)
+
         from anubis.core import Anubis
 
         anubis = Anubis()
         if not anubis.is_initialized():
             return
 
-        # Create auto-checkpoint
-        message = f"Auto: after {tool_name}"
+        # Build meaningful message
+        if isinstance(tool_input, dict) and "file_path" in tool_input:
+            filename = Path(tool_input["file_path"]).name
+            message = f"Auto: {tool_name} {filename}"
+        else:
+            message = f"Auto: {tool_name}"
 
-        # Extract reasoning from tool input if available
-        reasoning = None
-        try:
-            input_data = json.loads(tool_input)
-            if "file_path" in input_data:
-                reasoning = f"Modified {input_data['file_path']}"
-            elif "command" in input_data:
-                cmd = input_data["command"][:100]
-                reasoning = f"Ran: {cmd}"
-        except (json.JSONDecodeError, KeyError):
-            pass
+        # Use Claude's thinking as reasoning
+        reasoning = thinking if thinking else None
 
         anubis.checkpoint(
             message=message,
@@ -105,9 +111,8 @@ def main():
             max_files=10,
         )
 
-    except Exception as e:
-        # Silently fail - don't interrupt Claude Code
-        pass
+    except Exception:
+        pass  # Silently fail
 
 if __name__ == "__main__":
     main()
@@ -115,29 +120,44 @@ if __name__ == "__main__":
 
 
 def handle_claude_code_post_tool() -> None:
-    """Handle post-tool-use hook from Claude Code."""
-    tool_name = os.environ.get("CLAUDE_TOOL_NAME", "unknown")
-    tool_input = os.environ.get("CLAUDE_TOOL_INPUT", "{}")
+    """Handle post-tool-use hook from Claude Code.
 
+    Claude Code passes hook data via stdin as JSON, not environment variables.
+    The JSON includes a 'thinking' field with Claude's actual reasoning.
+    """
     try:
+        # Read JSON from stdin (Claude Code's hook protocol)
+        input_json = sys.stdin.read()
+        if not input_json.strip():
+            return
+
+        hook_data = json.loads(input_json)
+
+        tool_name = hook_data.get("tool_name", "unknown")
+        tool_input = hook_data.get("tool_input", {})
+        thinking = hook_data.get("thinking", "")
+
+        # Change to the working directory from hook data
+        cwd = hook_data.get("cwd")
+        if cwd:
+            os.chdir(cwd)
+
         anubis = Anubis()
         if not anubis.is_initialized():
             return
 
-        # Create auto-checkpoint
-        message = f"Auto: after {tool_name}"
+        # Build a meaningful checkpoint message
+        if isinstance(tool_input, dict) and "file_path" in tool_input:
+            filename = Path(tool_input["file_path"]).name
+            message = f"Auto: {tool_name} {filename}"
+        elif isinstance(tool_input, dict) and "command" in tool_input:
+            cmd = tool_input["command"][:50]
+            message = f"Auto: {tool_name} `{cmd}`"
+        else:
+            message = f"Auto: {tool_name}"
 
-        # Extract reasoning from tool input if available
-        reasoning = None
-        try:
-            input_data = json.loads(tool_input)
-            if "file_path" in input_data:
-                reasoning = f"Modified {input_data['file_path']}"
-            elif "command" in input_data:
-                cmd = input_data["command"][:100]
-                reasoning = f"Ran: {cmd}"
-        except (json.JSONDecodeError, KeyError):
-            pass
+        # Use Claude's thinking as the reasoning (the key fix!)
+        reasoning = thinking if thinking else None
 
         anubis.checkpoint(
             message=message,
@@ -146,8 +166,8 @@ def handle_claude_code_post_tool() -> None:
             max_files=10,
         )
 
-    except AnubisError:
-        pass  # Silently fail
+    except (json.JSONDecodeError, AnubisError, OSError):
+        pass  # Silently fail - don't interrupt Claude Code
 
 
 def setup_claude_code_hooks(repo_root: Path) -> dict[str, Any]:
