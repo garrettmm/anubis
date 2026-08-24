@@ -55,17 +55,49 @@ class Anubis:
         db_path = init_db(self.repo_root)
         self._storage = Storage(self.repo_root)
 
-        # Add .anubis to .gitignore if not already there
-        gitignore = self.repo_root / ".gitignore"
-        if gitignore.exists():
-            content = gitignore.read_text()
-            if ANUBIS_DIR not in content:
-                with gitignore.open("a") as f:
-                    f.write(f"\n# Anubis metadata\n{ANUBIS_DIR}/\n")
-        else:
-            gitignore.write_text(f"# Anubis metadata\n{ANUBIS_DIR}/\n")
+        # Update .gitignore with Anubis and common development ignores
+        self._setup_gitignore()
 
         return db_path
+
+    def _setup_gitignore(self) -> None:
+        """Ensure .gitignore has Anubis dir and common development ignores."""
+        gitignore = self.repo_root / ".gitignore"
+
+        if gitignore.exists():
+            content = gitignore.read_text()
+        else:
+            content = ""
+
+        additions = []
+
+        # Always add .anubis/
+        if ANUBIS_DIR not in content:
+            additions.append(f"# Anubis metadata\n{ANUBIS_DIR}/")
+
+        # For Python projects, add common ignores
+        is_python = (
+            (self.repo_root / "pyproject.toml").exists()
+            or (self.repo_root / "requirements.txt").exists()
+            or (self.repo_root / "setup.py").exists()
+        )
+
+        if is_python:
+            python_ignores = [
+                ("__pycache__/", "__pycache__"),
+                ("*.pyc", "*.pyc"),
+                (".venv/", ".venv/"),
+                ("venv/", "venv/"),
+            ]
+            new_ignores = [
+                pattern for pattern, check in python_ignores if check not in content
+            ]
+            if new_ignores:
+                additions.append("# Python\n" + "\n".join(new_ignores))
+
+        if additions:
+            with gitignore.open("a") as f:
+                f.write("\n" + "\n\n".join(additions) + "\n")
 
     def checkpoint(
         self,
