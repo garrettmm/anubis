@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anubis-vcs"
-version = "0.5.3"
+version = "0.5.4"
 description = "AI-native version control - semantic commits and reasoning traces on top of git"
 readme = "README.md"
 license = {text = "MIT"}
