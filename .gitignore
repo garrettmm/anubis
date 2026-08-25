@@ -11,3 +11,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 .coverage
+
+# Project planning (local only)
+ideas/
