@@ -46,18 +46,11 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build==1.2.2
+          pip install build==1.2.2 twine
 
       - name: Build package
         run: python -m build
 
-      - name: Generate build attestations
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: 'dist/*'
-
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.12.2
-        with:
-          attestations: true
-          print-hash: true
+        run: |
+          python -m twine upload --repository-url https://upload.pypi.org/legacy/ dist/* --verbose
