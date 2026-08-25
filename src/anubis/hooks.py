@@ -149,20 +149,38 @@ if __name__ == "__main__":
 '''
 
 
-def _get_old_content(git_wrapper, filepath: str, status: str) -> str | None:
+def _get_old_content(anubis, git_wrapper, filepath: str, status: str) -> str | None:
     """Get old file content for semantic comparison.
 
+    Checks last checkpoint first, then falls back to HEAD.
+    This enables incremental change detection.
+
     Args:
+        anubis: Anubis instance for checkpoint access
         git_wrapper: Git operations wrapper
         filepath: Path to file
         status: File status (added, modified, deleted, untracked)
 
     Returns:
-        Old content from HEAD, or None if file is new
+        Old content from last checkpoint or HEAD, or None if file is new
     """
     if status in ("added", "untracked"):
         return None
 
+    # Try to get content from last checkpoint first
+    try:
+        checkpoints = anubis.storage.list_checkpoints(limit=1)
+        if checkpoints:
+            last_checkpoint = checkpoints[0]
+            # Find this file in last checkpoint's snapshots
+            for snapshot in last_checkpoint.file_snapshots:
+                if snapshot.path == filepath and snapshot.content:
+                    logger.debug(f"Using content from checkpoint {last_checkpoint.id[:8]} for {filepath}")
+                    return snapshot.content
+    except Exception as e:
+        logger.debug(f"Could not retrieve from last checkpoint: {e}")
+
+    # Fallback to HEAD if no checkpoint or file not in checkpoint
     try:
         from git.exc import GitCommandError
         return git_wrapper.repo.git.show(f'HEAD:{filepath}')
@@ -170,10 +188,11 @@ def _get_old_content(git_wrapper, filepath: str, status: str) -> str | None:
         return None
 
 
-def _analyze_changed_files(git_wrapper, changed_files: list[str]) -> list:
+def _analyze_changed_files(anubis, git_wrapper, changed_files: list[str]) -> list:
     """Run semantic analysis on changed files.
 
     Args:
+        anubis: Anubis instance for checkpoint access
         git_wrapper: Git operations wrapper
         changed_files: List of file paths
 
@@ -185,7 +204,7 @@ def _analyze_changed_files(git_wrapper, changed_files: list[str]) -> list:
     for filepath in changed_files[:10]:  # Limit to first 10 files for performance
         try:
             status = git_wrapper.get_file_status(filepath)
-            old_content = _get_old_content(git_wrapper, filepath, status)
+            old_content = _get_old_content(anubis, git_wrapper, filepath, status)
             new_content = git_wrapper.get_file_content(filepath) if status != "deleted" else None
 
             file_data.append((filepath, old_content, new_content))
@@ -380,7 +399,7 @@ def handle_claude_code_post_tool() -> None:
         logger.info(f"Changed files: {len(changed_files)}")
 
         # Run semantic analysis
-        operations = _analyze_changed_files(anubis.git, changed_files)
+        operations = _analyze_changed_files(anubis, anubis.git, changed_files)
 
         logger.info(f"Semantic analysis: {len(operations)} operations")
 
