@@ -60,7 +60,10 @@ anubis = "anubis.cli:main"
 anubis-mcp = "anubis.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/anubis"]
+packages = ["anubis"]
+
+[tool.hatch.build]
+sources = ["src"]
 
 [tool.ruff]
 line-length = 100
