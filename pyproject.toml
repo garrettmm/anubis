@@ -58,8 +58,9 @@ Issues = "https://github.com/garrettmm/anubis/issues"
 anubis = "anubis.cli:main"
 anubis-mcp = "anubis.mcp_server:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["anubis"]
 
 [tool.ruff]
 line-length = 100
