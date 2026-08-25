@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anubis-vcs"
-version = "0.5.1"
+version = "0.5.2"
 description = "AI-native version control - semantic commits and reasoning traces on top of git"
 readme = "README.md"
 license = "MIT"
